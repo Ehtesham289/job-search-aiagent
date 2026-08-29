@@ -29,7 +29,7 @@ export function createConsoleSink(opts: { verbose?: boolean } = {}) {
         break;
 
       case "plan":
-        // A detail of the planner node above it, not a step of its own.
+        // A detail of the node above it, not a step of its own.
         console.log(
           c.dim(`     · ${ev.nodes} nodes, ${ev.parallel_branches} max parallel, budget ${ev.budget}`),
         );

@@ -122,7 +122,7 @@ function taskGraph() {
       { id: "curate", kind: "memory_curate", label: "Commit learnings", depends_on: ["rank"], note: null, limit: null, optional: false },
     ],
     success_criteria: ["at least one ranked result", "every score traceable to a measured signal"],
-    notes: ["offline plan (no planner model)"],
+    notes: ["offline plan"],
   };
 }
 

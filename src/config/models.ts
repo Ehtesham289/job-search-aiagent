@@ -51,7 +51,7 @@ export const MODELS: Record<string, ModelSpec> = {
 /**
  * `strong` is Sonnet, not Opus.
  *
- * The strong tier runs the planner, the query strategist and the five
+ * The strong tier runs the query strategist and the five
  * tailoring steps. Those are structured tasks against a fixed schema — decompose
  * a brief into a DAG, expand a role into a search matrix, rewrite a bullet
  * without inventing an achievement — and the adversarial critic already catches

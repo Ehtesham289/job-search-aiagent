@@ -482,7 +482,7 @@ function clearConsole() {
     '<li class="stream__idle"><p>Nothing running.</p>' +
     '<p class="dim">Every node writes one line here as it finishes: which agent, which model tier, ' +
     "what it decided, what it cost. Code nodes cost nothing and say so.</p></li>";
-  el.lattice.innerHTML = '<p class="empty">The planner\'s graph appears here, and lights up as the scheduler dispatches each superstep.</p>';
+  el.lattice.innerHTML = '<p class="empty">The task graph appears here, and lights up as the scheduler dispatches each superstep.</p>';
   el.latticeMeta.textContent = "—";
   el.resultsPanel.hidden = true;
   el.artifactsPanel.hidden = true;
@@ -580,7 +580,7 @@ function follow(runId, { fresh = false, keepSearch = false } = {}) {
 
   if (fresh) {
     el.stream.innerHTML = "";
-    el.lattice.innerHTML = '<p class="empty">Waiting for the planner…</p>';
+    el.lattice.innerHTML = '<p class="empty">Waiting for the first superstep…</p>';
     el.resultsPanel.hidden = true;
     el.artifactsPanel.hidden = true;
     el.tracePanel.hidden = true;
@@ -639,7 +639,7 @@ function handle(ev) {
     case "node_started":
       setNode(ev.node_id, "running");
       // Name the step in plain words. `label` is written for a person;
-      // `agent` is the fallback when a planner-authored node has none.
+      // `agent` is the fallback when a node carries no label.
       showWorking(ev.label || ev.agent, ev.agent);
       break;
 

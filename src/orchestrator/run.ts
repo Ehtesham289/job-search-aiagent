@@ -138,8 +138,8 @@ export class JobSearchAgent {
         input.autoDiscover ?? this.store.listSources({ status: "verified" }).length < 5,
     };
 
-    // The resume is parsed before planning, because the planner's job is to
-    // decompose *this* candidate's search and it needs the profile to do it.
+    // The résumé is parsed before the graph runs: the query strategist and the
+    // scorers all work from the profile, so it has to exist before dispatch.
     if (input.parsedResume) {
       board = { ...board, resume: input.parsedResume.resume, profile: input.parsedResume.profile };
     } else if (input.resumeText) {

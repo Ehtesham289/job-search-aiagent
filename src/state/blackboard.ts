@@ -33,7 +33,7 @@ export interface Blackboard {
 
   /**
    * Companies the user asked to discover. Its own field because it used to
-   * ride on the shared `params.note`, which the planner also writes — so a
+   * ride on the shared `params.note`, which the plan also carries — so a
    * planning hint got read as a company name and became a nonsense question.
    */
   discover_targets: string[];
