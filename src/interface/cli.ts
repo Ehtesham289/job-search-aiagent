@@ -14,7 +14,7 @@ const USAGE = `job-search-aiagent - layered multi-agent job discovery and resume
   search    --brief <text> [--resume <file>] [--location "Kolkata,Remote"]
             [--onsite-only] [--discover a,b] [--find-companies] [--budget 0.40]
             [--preset cheap|balanced|thorough]
-            [--no-planner] [--offline] [--fixtures] [--verbose]
+            [--offline] [--fixtures] [--verbose]
   tailor    <search-run-id> <job-id> [--offline] [--verbose]
   resume    <run-id> --answer <escalation-id>=<text> [...]
   discover  <company-or-domain> [...]
@@ -140,7 +140,6 @@ async function main(): Promise<number> {
         const result = await system.search({
           brief,
           resumeText,
-          usePlanner: !args.flags["no-planner"],
           locations: str(args.flags.location)?.split(",").map((x) => x.trim()).filter(Boolean) ?? [],
           remoteOk: !args.flags["onsite-only"],
           ...(args.flags["find-companies"] ? { autoDiscover: true } : {}),

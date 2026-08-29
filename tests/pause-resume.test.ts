@@ -62,8 +62,7 @@ function makeSystem(provider: ScriptedProvider): JobSearchAgent {
 describe("bounded reflection and human-in-the-loop pause", () => {
   it("caps the revision loop, escalates the unresolved items, and pauses the run", async () => {
     const search = await makeSystem(fixtureProvider()).search({
-      brief: BRIEF, resumeText: resumeText(), usePlanner: false,
-    });
+      brief: BRIEF, resumeText: resumeText(),    });
     const jobId = search.board.ranked_job_ids[0]!;
 
     const system = makeSystem(stubbornCriticProvider());
@@ -91,7 +90,7 @@ describe("bounded reflection and human-in-the-loop pause", () => {
 
   it("resumes from the checkpoint and replays committed nodes instead of redoing them", async () => {
     const seedSystem = makeSystem(fixtureProvider());
-    const search = await seedSystem.search({ brief: BRIEF, resumeText: resumeText(), usePlanner: false });
+    const search = await seedSystem.search({ brief: BRIEF, resumeText: resumeText() });
     const jobId = search.board.ranked_job_ids[0]!;
 
     const system = makeSystem(stubbornCriticProvider());
@@ -118,5 +117,37 @@ describe("bounded reflection and human-in-the-loop pause", () => {
     expect(paidGapCalls).toBe(1);
     expect(resumed.trace.some((t) => t.output_summary.includes("replayed from checkpoint"))).toBe(true);
     expect(resumed.spent.cost_usd).toBeGreaterThanOrEqual(costBefore);
+  });
+
+  it("puts the answers on the board so the renderer honours them and a résumé comes out", async () => {
+    const seedSystem = makeSystem(fixtureProvider());
+    const search = await seedSystem.search({ brief: BRIEF, resumeText: resumeText() });
+    const jobId = search.board.ranked_job_ids[0]!;
+
+    const system = makeSystem(stubbornCriticProvider());
+    const paused = await system.tailor({ searchRunId: search.runId, jobId });
+    expect(paused.status).toBe("awaiting_user");
+    // The critic held the draft back, so nothing was rendered before the answer.
+    expect(paused.board.render ?? null).toBeNull();
+
+    const question = store.listEscalations(paused.runId, true).find((e) => e.blocking)!;
+    const resumed = await system.resume({
+      runId: paused.runId,
+      answers: { [question.id]: "Keep the original wording." },
+    });
+
+    // `Command({ resume })` reaches only the `interrupt` that paused the run,
+    // and the node holding it is replayed rather than re-executed — so the
+    // answers have to be written onto the board explicitly. Without that the
+    // board stayed empty here and the renderer refused a second time, leaving
+    // the run `partial` with no PDF however often it was resumed.
+    expect(Object.values(resumed.board.answers ?? {})).toContain("Keep the original wording.");
+
+    expect(resumed.board.render).toBeTruthy();
+    expect(resumed.board.render!.pdf_path).toMatch(/\.pdf$/);
+    expect(resumed.board.render!.docx_path).toMatch(/\.docx$/);
+    expect(resumed.board.skipped ?? []).not.toContain(
+      "render: draft still carries unresolved critic rejections",
+    );
   });
 });

@@ -190,7 +190,7 @@ npm run cli -- trace <run-id>                    # every node, cost, duration
    Both are sinks on one ProgressEvent stream, not two
    implementations. Escalates when confidence is low.
 ── L3  ORCHESTRATION ────────────────────────────────────────  src/orchestrator/
-   Planner builds a task DAG. Scheduler dispatches, fans out,
+   A deterministic task DAG. Scheduler dispatches, fans out,
    fans in. Governor enforces cost/time/retry budgets.
    Checkpoints after every superstep.
 ── L2  SPECIALIST AGENTS ────────────────────────────────────  src/agents/
@@ -212,7 +212,6 @@ not an exception.
 
 | Agent | Owns | Tier | Contract |
 |---|---|---|---|
-| Planner | Run decomposition into a DAG; deterministic fallback plan | strong | `TaskGraph` |
 | Query Strategist | Title × skill-signature search matrix | strong | `QueryPlan` |
 | Source Discovery | Finding, classifying and verifying career pages | code + search | `SourceRecord` |
 | Harvester | Pulling and normalizing postings, fan-out per source | code (model only as fallback) | `JobPosting[]` |
@@ -226,8 +225,8 @@ not an exception.
 | Application Agent | Resolving the true apply URL, snapshotting the JD | code | tracker row |
 | Memory Curator | Writing durable learnings back to memory | code | — |
 
-Resume parsing sits ahead of the DAG (the planner needs a profile to plan with) but
-is traced like any other node.
+Resume parsing sits ahead of the DAG — the query strategist needs a profile to work
+from — but is traced like any other node.
 
 ## The parts worth reading
 
@@ -264,7 +263,7 @@ fonts, selectable text. Every render is followed by re-extracting the text from 
 PDF and confirming every section, skill and bullet survived the round trip. If
 extraction loses content the render failed, however good it looks.
 
-**The scheduler** (`src/orchestrator/graph.ts`) runs the planner's DAG on LangGraph:
+**The scheduler** (`src/orchestrator/graph.ts`) runs the task DAG on LangGraph:
 every node whose dependencies are satisfied is dispatched in one superstep, fan-in is
 automatic, and state is checkpointed each superstep. Dispatch routes from a single
 node rather than from `execute`, which is what makes scheduling exactly-once under
@@ -285,7 +284,6 @@ called once per run.
 | match rubric | mid | $0.010/job | scoring, top ~30 only |
 | query strategy | **strong** | $0.029 | see below |
 | broadening pass | mid | $0.006 | widening an existing matrix, not originating one |
-| planner | strong | $0.026 | **off by default** — see below |
 | tailoring + critic | strong | $0.01–0.02 | writing and adversarial review |
 
 **Query strategy earns the top tier.** Measured on the same support résumé:
@@ -307,10 +305,27 @@ something on a large registry, so `thorough` still buys Opus and
 `JOBSEARCH_MODEL_STRONG=claude-opus-5` restores it for a single run. It is not
 worth 3.5x on every search.
 
-**The planner does not earn it**, so it is off by default. For a standard search
-it spends $0.026 and 23s to emit the same eleven nodes as the deterministic
-default plan. (It was $0.044 on Opus; the figure moved with the strong tier.)
-Turn it on when the brief is unusual enough to need a different graph shape.
+**There is no model planner, because it was measured and removed.** A `strong`-tier
+agent used to draw the search DAG, on the theory that an unusual brief needs an
+unusual graph. Nine plans across seven briefs — ordinary, vague ("leave consulting,
+do anything in climate"), hyper-specific ("Staff Rust compiler engineer, must
+sponsor a UK visa"), and a career switch — returned **the same eleven nodes in the
+same order every time**. The one thing it existed to do, it never did.
+
+What it did vary was each node's `limit`, and always downward:
+
+| node | preset default | planner emitted |
+|---|---|---|
+| `match_score` (the LLM rubric) | 30 | 8, 12, 15, 15, 15, 15 |
+| `jd_analysis` | 60 | 15, 30, 40, 40, 50, 60 |
+| `source_discovery` | 10 | 5 |
+
+So it charged $0.026 and ~23s a run to *narrow* the funnel — and did it
+differently each time, the same brief three times producing three different
+limits. The `cheap` / `balanced` / `thorough` presets set those same numbers
+directly, for free, repeatably, and visibly. The planner was a slower, randomised,
+paid version of a control that already existed, so the deterministic plan is now
+the only plan.
 
 ## Cost, measured
 
@@ -421,7 +436,7 @@ replay from the persisted trace and read the same way a live one did.
 
 ```
 search    --brief <text> [--resume <file>] [--discover a,b] [--budget 0.40]
-          [--no-planner] [--fixtures] [--verbose]
+          [--fixtures] [--verbose]
 tailor    <search-run-id> <job-id>
 resume    <run-id> --answer <escalation-id>=<text> ...
 discover  <company-or-domain> ...     grow the registry, standalone

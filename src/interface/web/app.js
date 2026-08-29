@@ -34,7 +34,6 @@ const el = {
   budget: $("budget"),
   preset: $("preset"),
   presetHint: $("preset-hint"),
-  usePlanner: $("use-planner"),
   launchBtn: $("launch-btn"),
   resetBtn: $("reset-btn"),
   moreBar: $("more-bar"),
@@ -55,6 +54,13 @@ const el = {
   questionsMeta: $("questions-meta"),
   artifacts: $("artifacts"),
   artifactsPanel: $("artifacts-panel"),
+  dock: $("dock"),
+  dockEyebrow: $("dock-eyebrow"),
+  dockJob: $("dock-job"),
+  dockCheck: $("dock-check"),
+  dockPdf: $("dock-pdf"),
+  dockDocx: $("dock-docx"),
+  dockDismiss: $("dock-dismiss"),
   trace: $("trace"),
   tracePanel: $("trace-panel"),
   status: $("run-status"),
@@ -75,6 +81,10 @@ const state = {
   clock: null,
   searchRunId: null,
   tailoringJobId: null,
+  /** Run whose download dock the user closed, so it stays closed for that run. */
+  dockDismissed: null,
+  /** The last run payload rendered, so a handler can ask what a question was.  */
+  lastRun: null,
   /** Text extracted from an uploaded file, server-side. */
   uploadedResume: null,
   /** The model's structured read of the uploaded résumé, reused by the run. */
@@ -148,6 +158,10 @@ async function init() {
   el.discoverBtn.addEventListener("click", addCompanies);
   el.resetBtn.addEventListener("click", clearConsole);
   el.moreBtn.addEventListener("click", findMore);
+  el.dockDismiss.addEventListener("click", () => {
+    state.dockDismissed = state.runId;
+    hideDock();
+  });
   wireRegistry();
   el.preset.addEventListener("change", describePreset);
   describePreset();
@@ -456,6 +470,7 @@ function clearConsole() {
   state.runId = null;
   state.searchRunId = null;
   state.tailoringJobId = null;
+  state.dockDismissed = null;
   state.parsedResume = null;
   state.step = 0;
   state.nodeState = new Map();
@@ -473,6 +488,7 @@ function clearConsole() {
   el.artifactsPanel.hidden = true;
   el.tracePanel.hidden = true;
   el.moreBar.hidden = true;
+  hideDock();
   el.questions.innerHTML = '<p class="empty">No questions raised yet.</p>';
   el.questionsMeta.textContent = "0 open";
   el.streamMeta.textContent = "waiting for a run";
@@ -502,7 +518,6 @@ async function findMore() {
       preset: el.preset.value,
       budget: Number(el.budget.value) || undefined,
       autoDiscover: el.autoDiscover.checked,
-      usePlanner: false,
     });
     if (error) throw new Error(error);
     follow(runId, { fresh: true });
@@ -530,7 +545,6 @@ async function onSearch(e) {
       autoDiscover: el.autoDiscover.checked,
       preset: el.preset.value,
       budget: Number(el.budget.value) || undefined,
-      usePlanner: el.usePlanner.checked,
     });
     if (error) throw new Error(error);
     state.searchRunId = runId;
@@ -570,6 +584,9 @@ function follow(runId, { fresh = false, keepSearch = false } = {}) {
     el.resultsPanel.hidden = true;
     el.artifactsPanel.hidden = true;
     el.tracePanel.hidden = true;
+    // A new run's résumé is not this run's résumé.
+    state.dockDismissed = null;
+    hideDock();
     el.questions.innerHTML = '<p class="empty">No questions raised yet.</p>';
     el.questionsMeta.textContent = "0 open";
   }
@@ -901,6 +918,7 @@ async function loadRun(runId) {
   const run = await getJson(`/api/run?id=${encodeURIComponent(runId)}`).catch(() => null);
   if (!run) return;
 
+  state.lastRun = run;
   setStatus(run.status);
   renderResults(run);
   renderQuestions(run);
@@ -993,13 +1011,56 @@ function renderResults(run) {
 
 function renderQuestions(run) {
   const open = run.questions.filter((q) => !q.answer);
-  el.questionsMeta.textContent = `${open.length} open`;
+  // A question only holds the graph open if it is blocking AND the run is
+  // still going. Everything else is a note about what the résumé left out,
+  // and saying "N open" on a finished run read as "still waiting on you".
+  const waiting = run.status === "running" || run.status === "paused";
+  const blocking = open.filter((q) => q.blocking);
+  el.questionsMeta.textContent = !open.length
+    ? "all answered"
+    : waiting && blocking.length
+      ? `${blocking.length} blocking`
+      : `${open.length} unanswered`;
+
   if (!run.questions.length) {
     el.questions.innerHTML = '<p class="empty">No questions raised for this run.</p>';
     return;
   }
 
   el.questions.innerHTML = "";
+
+  // A run parked at `awaiting_user` whose blocking questions are all answered
+  // has nothing left to click, and nothing restarts it on its own. Without
+  // this the run stays stopped for good, with no résumé rendered.
+  if ((run.status === "awaiting_user" || run.status === "partial") && !blocking.length && open.length < run.questions.length) {
+    const bar = document.createElement("div");
+    bar.className = "q__continue";
+    bar.innerHTML =
+      `<p>Answered — the run stopped here and is waiting to be picked back up. ` +
+      `It carries on from its last checkpoint; finished steps are not paid for twice.</p>` +
+      `<button class="btn btn--small btn--primary" type="button">Continue the run</button>`;
+    bar.querySelector("button").addEventListener("click", (e) => {
+      e.target.disabled = true;
+      e.target.textContent = "resuming…";
+      continueRun(run.id);
+    });
+    el.questions.append(bar);
+  }
+
+  // On a finished run, say up front why these are still here: the résumé is
+  // already rendered and simply left these claims out, because nothing in the
+  // uploaded résumé backed them. An answer is recorded against the run for
+  // your own reference — it does not re-render anything on its own.
+  if (!waiting && open.length) {
+    const note = document.createElement("p");
+    note.className = "q__note";
+    note.textContent =
+      `This run is finished — it did not stop to wait for these. Each one is a claim the job ` +
+      `wanted that your résumé did not back, so it was left out rather than invented. Answering ` +
+      `records your answer against this run; it does not re-render the résumé.`;
+    el.questions.append(note);
+  }
+
   for (const q of run.questions) {
     const div = document.createElement("div");
     div.className = "q";
@@ -1028,14 +1089,45 @@ function renderQuestions(run) {
   }
 }
 
+/**
+ * Records an answer, and continues the run if that was the last thing holding
+ * it up.
+ *
+ * A blocking question parks the run at `awaiting_user` with its render and
+ * apply nodes never dispatched. Recording the answer does not restart it — so
+ * without the continue call the console answered the question and then sat
+ * there forever, and no PDF was ever produced.
+ */
 async function answer(runId, id, text) {
+  const q = state.lastRun?.questions.find((x) => x.id === id);
   await postJson("/api/answer", { runId, id, text });
+
+  if (q?.blocking && (state.lastRun?.status === "awaiting_user" || state.lastRun?.status === "partial")) {
+    const { runId: resumed, error } = await postJson("/api/continue", { runId });
+    if (resumed) {
+      // Re-attach to the stream: the resumed run emits into the same channel.
+      follow(runId, { keepSearch: true });
+      return;
+    }
+    // "still need an answer" is the normal case with more than one blocking
+    // question outstanding, and is not worth an alert.
+    if (error && !/still need an answer/.test(error)) alert(error);
+  }
+
   await loadRun(runId);
+}
+
+/** Continues a paused run from the banner, without answering anything new. */
+async function continueRun(runId) {
+  const { runId: resumed, error } = await postJson("/api/continue", { runId });
+  if (resumed) follow(runId, { keepSearch: true });
+  else if (error) alert(error);
 }
 
 function renderArtifacts(run) {
   if (!run.render) {
     el.artifactsPanel.hidden = true;
+    hideDock();
     return;
   }
   el.artifactsPanel.hidden = false;
@@ -1043,9 +1135,13 @@ function renderArtifacts(run) {
   const file = (p) => `/api/file?run=${encodeURIComponent(run.id)}&name=${encodeURIComponent(p.split("/").pop())}`;
   const problems = [...c.missing_sections, ...c.missing_skills, ...c.notes];
 
+  renderDock(run, file, problems);
+
   el.artifacts.innerHTML =
     `<div class="artifact">` +
-    `<div class="artifact__check" data-pass="${c.passed}">` +
+    // The stylesheet keys the pass/fail colour off `data-ok`. This wrote
+    // `data-pass`, so the line rendered grey either way.
+    `<div class="artifact__check" data-ok="${c.passed}">` +
     `<span>${c.passed ? "◆" : "▲"}</span>` +
     `<span>post-render ATS check ${c.passed ? "passed" : "FAILED"} · ${c.extracted_chars} chars re-extracted</span>` +
     `</div>` +
@@ -1060,6 +1156,37 @@ function renderArtifacts(run) {
     // above are the path that always works.
     `<p class="note dim">Preview needs the browser's PDF viewer. Use the links above if it stays blank.</p>` +
     `</div>`;
+}
+
+/**
+ * The floating "your résumé is ready" card.
+ *
+ * Named after the job rather than the run: `selected_job_id` is what the
+ * tailoring actually ran against, and the parent search's rows carry the
+ * title and company to print. A run whose parent rows are not loaded still
+ * gets a card — it just says "your résumé" instead of naming the posting.
+ */
+function renderDock(run, file, problems) {
+  if (state.dockDismissed === run.id) return;
+
+  const c = run.render.ats_check;
+  const job = run.selected_job_id ? run.results.find((r) => r.job_id === run.selected_job_id) : null;
+
+  el.dock.dataset.ok = String(c.passed);
+  el.dock.hidden = false;
+  el.dockEyebrow.textContent = c.passed ? "Résumé ready" : "Résumé ready · needs review";
+  el.dockJob.textContent = job ? `${job.title} — ${job.company}` : "Tailored résumé";
+  el.dockCheck.textContent = c.passed
+    ? `ATS check passed · ${c.extracted_chars} chars re-extracted`
+    : problems.length
+      ? `ATS check failed — ${problems.join("; ")}`
+      : "ATS check failed — read it before sending";
+  el.dockPdf.href = file(run.render.pdf_path);
+  el.dockDocx.href = file(run.render.docx_path);
+}
+
+function hideDock() {
+  el.dock.hidden = true;
 }
 
 function renderTrace(run) {
@@ -1128,6 +1255,11 @@ async function openPastRun(r) {
 
   const run = await getJson(`/api/run?id=${encodeURIComponent(r.id)}`).catch(() => null);
   if (!run) return;
+
+  state.lastRun = run;
+  // Reopening a run that stopped on a question must offer the way out of it,
+  // not just show the question again.
+  state.dockDismissed = null;
 
   // Replay the persisted trace, so a past run reads the same way a live one did.
   run.trace.forEach((t, i) => {

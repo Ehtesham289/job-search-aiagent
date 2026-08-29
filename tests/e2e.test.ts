@@ -10,7 +10,7 @@ beforeEach(() => {
 afterEach(() => h.cleanup());
 
 async function search(overrides: Parameters<Harness["system"]["search"]>[0] extends infer T ? Partial<T> : never = {}) {
-  return h.system.search({ brief: BRIEF, resumeText: resumeText(), usePlanner: false, ...overrides });
+  return h.system.search({ brief: BRIEF, resumeText: resumeText(), ...overrides });
 }
 
 describe("search lane, end to end and offline", () => {
@@ -98,7 +98,7 @@ describe("search lane, end to end and offline", () => {
 
     // A different run: the DAG must actually execute (idempotency is scoped
     // per run), but the per-job JD analysis cache is long-lived.
-    const r2 = await h.system.search({ brief: BRIEF, resumeText: resumeText(), usePlanner: false });
+    const r2 = await h.system.search({ brief: BRIEF, resumeText: resumeText() });
     const second = r2.trace.find((t) => t.kind === "jd_analysis")!;
     expect(second.output_summary).toMatch(/served from cache/);
     expect(second.usage.cost_usd).toBe(0);
@@ -134,7 +134,6 @@ describe("budget governor stops cleanly", () => {
     const r = await h.system.search({
       brief: BRIEF,
       resumeText: resumeText(),
-      usePlanner: false,
       budget: { max_llm_calls: 3 },
     });
 
@@ -153,7 +152,6 @@ describe("budget governor stops cleanly", () => {
     const r = await h.system.search({
       brief: BRIEF,
       resumeText: resumeText(),
-      usePlanner: false,
       budget: { max_llm_calls: 3 },
     });
 
@@ -175,7 +173,6 @@ describe("budget governor stops cleanly", () => {
     const r = await h.system.search({
       brief: BRIEF,
       resumeText: resumeText(),
-      usePlanner: false,
       budget: { max_llm_calls: 4 },
     });
     const broadenNodes = (r.board.skipped ?? []).filter((s) => /widened matrix|Broaden/i.test(s));
@@ -260,7 +257,6 @@ describe("stated preferences override the résumé", () => {
     const r = await h.system.search({
       brief: "Backend engineer, 4 years",
       resumeText: resumeText(),
-      usePlanner: false,
     });
     // The fixture résumé says Bengaluru throughout; that must not become a filter.
     expect(r.board.query_plan!.locations).toEqual([]);
@@ -272,7 +268,6 @@ describe("stated preferences override the résumé", () => {
     const r = await h.system.search({
       brief: "Backend engineer, 4 years",
       resumeText: resumeText(),
-      usePlanner: false,
       locations: ["Pune"],
       remoteOk: false,
     });
@@ -294,7 +289,6 @@ describe("stated preferences override the résumé", () => {
       const r = await offline.system.search({
         brief: "Backend engineer",
         resumeText: resumeText(),
-        usePlanner: false,
         locations: ["Bengaluru"],
         remoteOk: false,
       });
@@ -321,7 +315,6 @@ describe("stated preferences override the résumé", () => {
     const r = await offline.system.search({
       brief: "Customer support associate, 1.5 years",
       resumeText: SUPPORT_RESUME,
-      usePlanner: false,
     });
     const titles = r.board.ranked_job_ids.map((id) => offline.store.getJob(id)!.title);
     try {
@@ -340,7 +333,6 @@ describe("stated preferences override the résumé", () => {
       const r = await offline.system.search({
         brief: "Customer support associate, 1.5 years",
         resumeText: SUPPORT_RESUME,
-        usePlanner: false,
       });
 
       // Parsed from the supplied text, not replayed from a fixture.
@@ -388,7 +380,6 @@ describe("the registry grows itself", () => {
       const r = await offline.system.search({
         brief: "Customer support associate",
         resumeText: resumeText(),
-        usePlanner: false,
         autoDiscover: true,
       });
       expect(r.board.auto_discover).toBe(true);
@@ -407,7 +398,6 @@ describe("the registry grows itself", () => {
       const r = await offline.system.search({
         brief: "Customer support associate",
         resumeText: resumeText(),
-        usePlanner: false,
       });
       expect(r.board.auto_discover).toBe(true);
     } finally {

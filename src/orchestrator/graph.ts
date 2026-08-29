@@ -143,6 +143,22 @@ export async function runGraph(opts: RunOptions): Promise<RunResult> {
   let final: RunStateType;
 
   try {
+    if (opts.resume) {
+      // Put the answers on the board before resuming.
+      //
+      // `Command({ resume })` hands the value back to the `interrupt` call
+      // that paused the run — and to nothing else. The node that paused is
+      // replayed from its committed result rather than re-executed, so it
+      // never reaches that `interrupt` again and the value lands nowhere.
+      // `board.answers` then stayed `{}` for the whole resumed run, and every
+      // node that reads an answer saw none: the renderer kept refusing over
+      // critic rejections the user had already answered "keep the original
+      // wording" to, so a resumed run finished `partial` with no PDF.
+      //
+      // Merged, not assigned: `mergeBlackboard` folds `answers` into whatever
+      // the checkpoint already held.
+      await app.updateState(config, { board: { answers: opts.resume } });
+    }
     final = opts.resume
       ? ((await app.invoke(new Command({ resume: opts.resume }), config)) as RunStateType)
       : ((await app.invoke(initial, config)) as RunStateType);

@@ -60,6 +60,21 @@ class RunHub {
     for (const res of ch.subscribers) res.write(frame);
   }
 
+  /**
+   * Puts a closed channel back in flight.
+   *
+   * `close` marks a channel done for good, and `subscribe` answers a done
+   * channel with an immediate `end`. A run that pauses on a blocking question
+   * closes its channel, so without this the resumed run would stream into a
+   * channel that hangs up on every new subscriber. Prior events are kept so a
+   * reconnecting console still replays the whole run.
+   */
+  reopen(runId: string, kind: RunChannel["kind"]): RunChannel {
+    const ch = this.open(runId, kind);
+    ch.done = false;
+    return ch;
+  }
+
   close(runId: string): void {
     const ch = this.channels.get(runId);
     if (!ch) return;
@@ -261,7 +276,6 @@ export function createServer(opts: ServerOptions) {
         resumeText?: string;
         resumePath?: string;
         budget?: number;
-        usePlanner?: boolean;
         discover?: string;
         locations?: string;
         remoteOk?: boolean;
@@ -334,7 +348,6 @@ export function createServer(opts: ServerOptions) {
           runId,
           brief: body.brief,
           resumeText,
-          usePlanner: body.usePlanner !== false,
           locations: body.locations
             ? body.locations.split(/[,\n]/).map((x) => x.trim()).filter(Boolean)
             : [],
@@ -384,6 +397,56 @@ export function createServer(opts: ServerOptions) {
       }
       store.answerEscalation(body.id, body.text);
       json(res, 200, { ok: true, open: store.listEscalations(body.runId, true).length });
+      return;
+    }
+
+    /* ── continue a run paused on a blocking question ──────────────────── */
+    //
+    // Answering only records the answer. A run that stopped on a blocking
+    // escalation stays parked at `awaiting_user` until something calls
+    // `resume`, and until this existed only the CLI could — so a console user
+    // who answered the question watched the run sit there forever with the
+    // render and apply nodes never dispatched, and no PDF.
+    if (req.method === "POST" && pathname === "/api/continue") {
+      const body = await readJson<{ runId?: string }>(req);
+      if (!body.runId) return json(res, 400, { error: "runId is required" });
+
+      const run = store.getRun(body.runId);
+      if (!run) return json(res, 404, { error: `run ${body.runId} not found` });
+      // `partial` counts too: a run whose renderer declined over an
+      // unresolved critique stops there rather than pausing, and once the
+      // question behind it is answered that node is worth re-running.
+      if (run.status !== "awaiting_user" && run.status !== "partial") {
+        return json(res, 409, { error: `run is ${run.status}, nothing to pick back up` });
+      }
+
+      const escalations = store.listEscalations(body.runId);
+      const pending = escalations.filter((e) => e.blocking && !e.answer);
+      if (pending.length) {
+        return json(res, 409, {
+          error: `${pending.length} blocking question(s) still need an answer`,
+        });
+      }
+
+      const live = hub.get(body.runId);
+      if (live && !live.done) return json(res, 409, { error: "already running", runId: body.runId });
+
+      // Every answer on the run, not just the blocking ones: `resume` replays
+      // committed nodes and re-runs only what the pause interrupted, and the
+      // renderer reads non-blocking answers too.
+      const answers = Object.fromEntries(
+        escalations.filter((e) => e.answer).map((e) => [e.id, e.answer as string]),
+      );
+
+      hub.reopen(body.runId, body.runId.includes("_tailor_") ? "tailor" : "search");
+      json(res, 202, { runId: body.runId, answers: Object.keys(answers).length });
+
+      void systemFor(body.runId)
+        .resume({ runId: body.runId, answers })
+        .catch((err: Error) => {
+          hub.emit(body.runId!, { type: "run_finished", status: "failed", summary: err.message, skipped: [] });
+        })
+        .finally(() => hub.close(body.runId!));
       return;
     }
 
@@ -472,6 +535,9 @@ export function createServer(opts: ServerOptions) {
           blocking: e.blocking,
           answer: e.answer,
         })),
+        // Which job the tailoring ran against. The client names it on the
+        // download dock, so "your résumé is ready" can say ready for what.
+        selected_job_id: board.selected_job_id ?? null,
         render: board.render ?? null,
         critiques: board.critiques ?? [],
         bindings: board.bindings ?? null,

@@ -12,7 +12,7 @@ import { seedMemory } from "../tools/skills.js";
 import { emptyBlackboard, type Blackboard } from "../state/blackboard.js";
 import { SqliteStore } from "../state/sqlite.js";
 import type { Store } from "../state/store.js";
-import { defaultSearchPlan, plan as runPlanner, tailoringPlan } from "../agents/planner.js";
+import { defaultSearchPlan, tailoringPlan } from "../agents/planner.js";
 import { parseResume, summarize } from "../agents/resumeParser.js";
 import { discoverOne, parseTargets } from "../agents/sourceDiscovery.js";
 import type { AgentContext, AgentOutput } from "../agents/types.js";
@@ -99,8 +99,6 @@ export class JobSearchAgent {
     /** Search the web for employers nobody named. Defaults on when the
      *  registry is too thin to answer the question. */
     autoDiscover?: boolean;
-    /** Skip the planner and use the deterministic default plan. */
-    usePlanner?: boolean;
     /**
      * Jobs an earlier pass already showed. Excluded at the hard filter so a
      * continuation spends its analysis and rubric budget on new postings
@@ -162,28 +160,18 @@ export class JobSearchAgent {
       updated_at: new Date().toISOString(),
     });
 
-    const sources = this.store.listSources({ limit: 1000 });
-    let graph: TaskGraph;
-    // A continuation always uses the deterministic plan: its shape is not in
-    // question, only its inputs are, so paying the planner to redraw the same
-    // eleven nodes would be pure cost.
-    if (input.usePlanner === false || input.broaden) {
-      graph = defaultSearchPlan(budget, input.broaden ?? false);
-    } else {
-      const planned = await this.traced(runId, "plan", "planner", governor, () =>
-        runPlanner(ctx, {
-          brief: input.brief,
-          profile: board.profile ?? null,
-          registryStats: {
-            verified: sources.filter((s) => s.status === "verified").length,
-            unresolved: sources.filter((s) => s.status === "unresolved").length,
-            dead: sources.filter((s) => s.status === "dead").length,
-          },
-          budget,
-        }),
-      );
-      graph = planned.graph;
-    }
+    // Every search runs the deterministic plan.
+    //
+    // A model planner used to draw this graph instead. Measured over nine real
+    // plans across seven briefs — ordinary, vague, hyper-specific, and a career
+    // switch — it emitted the same eleven nodes in the same order every single
+    // time, so the one thing it existed to do it never did. What it did vary
+    // was each node's `limit`, always downward: the match rubric came back at
+    // 8-15 against a preset default of 30, and JD analysis at 15-60 against 60.
+    // It narrowed the funnel, non-deterministically, for $0.026 and ~23s a run.
+    // The cheap/balanced/thorough presets already set those numbers directly,
+    // for free and repeatably.
+    const graph = defaultSearchPlan(budget, input.broaden ?? false);
 
     return runGraph({
       runId,

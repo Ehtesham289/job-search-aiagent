@@ -908,6 +908,32 @@ input[type="checkbox"]:checked::after {
 
 /* ── artifacts ────────────────────────────────────────────────────── */
 
+/* The way out of a run parked on an answered blocking question. Green, not
+   amber: nothing is wrong, there is just an action left to take. */
+.q__continue {
+  padding: 11px 14px;
+  background: var(--green-wash);
+  border-bottom: 1px solid var(--rule);
+}
+.q__continue p {
+  margin: 0 0 9px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+
+/* Why a finished run still lists questions. Sits above them, keyed amber so
+   it reads as context rather than as another question. */
+.q__note {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  background: var(--amber-wash);
+  border-bottom: 1px solid var(--rule);
+}
+
 .artifact { padding: 12px 14px; border-bottom: 1px solid var(--rule); }
 .artifact__links { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 7px; }
 .artifact__links a { color: var(--cyan); font-size: 12.5px; text-decoration: none; }
@@ -915,6 +941,89 @@ input[type="checkbox"]:checked::after {
 .artifact__check { font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
 .artifact__check[data-ok="true"] { color: var(--green); }
 .artifact__check[data-ok="false"] { color: var(--red); }
+
+/* ── the résumé dock ──────────────────────────────────────────────── */
+
+/* Anchored to the viewport, not the rail, so it is on screen the moment the
+   render lands however far down the page you have scrolled. */
+.dock {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  width: 310px;
+  max-width: calc(100vw - 36px);
+  padding: 13px 15px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--rule-lit);
+  border-left: 3px solid var(--green);
+  border-radius: var(--radius);
+  /* Lifted off the page rather than tinted, so it reads as above the console
+     instead of as another panel in it. */
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+  animation: dock-in 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* A render that failed its ATS round trip is still downloadable, but it must
+   not wear the same confident green as one that passed. */
+.dock[data-ok="false"] { border-left-color: var(--amber); }
+
+@keyframes dock-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock { animation: none; }
+}
+
+.dock__eyebrow {
+  margin: 0 0 3px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+.dock[data-ok="false"] .dock__eyebrow { color: var(--amber); }
+
+.dock__job {
+  margin: 0 0 7px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  padding-right: 14px;
+}
+
+.dock__check {
+  margin: 0 0 11px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.dock__actions { display: flex; gap: 8px; }
+.dock__actions .btn { text-decoration: none; text-align: center; }
+
+.dock__dismiss {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.dock__dismiss:hover { color: var(--ink); }
+
+/* Below the two-rail breakpoint the dock would cover the results it refers
+   to, so it becomes a full-width bar instead. */
+@media (max-width: 900px) {
+  .dock { right: 12px; left: 12px; bottom: 12px; width: auto; }
+}
 
 /* ── the registry sheet ───────────────────────────────────────────── */
 

@@ -79,7 +79,6 @@ async function startSearch(): Promise<string> {
     body: JSON.stringify({
       brief: "Backend engineer, 4 years, Node and Postgres, Bengaluru or remote",
       resumePath: path.resolve("fixtures/resume.txt"),
-      usePlanner: false,
     }),
   });
   expect(res.status).toBe(202);

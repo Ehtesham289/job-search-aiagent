@@ -1,131 +1,21 @@
-import { z } from "zod";
 import { sha1 } from "../tools/embed.js";
-import { NodeKind, type Budget, type TaskGraph, type TaskNode } from "../schemas/taskgraph.js";
-import type { ProfileSummary } from "../schemas/profile.js";
-import { validateGraph } from "../orchestrator/dag.js";
-import { type AgentContext, type AgentOutput, emptyOutput } from "./types.js";
+import { type Budget, type TaskGraph, type TaskNode } from "../schemas/taskgraph.js";
 
 /**
- * §2.1 Planner. Owns run decomposition, holds no tools: it plans, it does not
- * act. Its output is a DAG whose structural validity is checked in code — a
- * cyclic or dangling plan is a validation failure, and validation failure is a
- * control-flow path, not an exception.
+ * §2.1 Run decomposition. The task graphs every run is built from.
+ *
+ * These were once a fallback: a model planner drew the search DAG, and dropped
+ * to `defaultSearchPlan` whenever it emitted something cyclic or dangling.
+ * Measured over nine real plans across seven briefs — ordinary, vague,
+ * hyper-specific, a career switch — it returned the same eleven nodes in the
+ * same order every time, which is the one thing it existed not to do. The only
+ * thing it did vary was each node's `limit`, and always downward: the match
+ * rubric at 8-15 against a preset default of 30, JD analysis at 15-60 against
+ * 60. So it charged $0.026 and ~23s per run to narrow the funnel, differently
+ * each time for the same brief. The cheap/balanced/thorough presets set those
+ * same numbers directly, for free and repeatably, so the planner went and the
+ * deterministic plans became the only plans.
  */
-const SYSTEM = `You decompose a job-search run into a task DAG for a multi-agent system.
-
-Available node kinds and what each does:
-- query_strategy   expand the brief into a title/skill search matrix (no dependencies)
-- source_discovery find and verify company career pages, growing a permanent registry
-- harvest          pull postings from every selected source in parallel
-- dedupe           collapse the same job posted to several boards (pure code)
-- hard_filter      drop postings that fail non-negotiable constraints (pure code)
-- jd_analysis      turn each surviving JD into structured requirements (cheap model, cached)
-- prescore         vector + skill-graph scoring to pick the shortlist (pure code)
-- match_score      LLM rubric over the shortlist only
-- reconcile        re-score jobs where composite and holistic verdicts disagree
-- rank             order the final results (pure code)
-- memory_curate    write durable learnings back to long-term memory
-
-Rules:
-- Emit dependencies, not an order. Independent nodes run in parallel automatically,
-  so do NOT chain nodes that do not actually depend on each other.
-- source_discovery is independent of query_strategy and should run beside it.
-- No cycles. Every depends_on must name a node you also emit.
-- Every run ends with memory_curate.
-- success_criteria are checkable statements, e.g. "at least 10 ranked results".
-- Set optional:true only on nodes whose failure should degrade the run rather than
-  stop it (source_discovery is the usual one).
-- Use one node per kind unless the brief genuinely needs a second branch.`;
-
-const PlannedNode = z.object({
-  id: z.string(),
-  kind: NodeKind,
-  label: z.string(),
-  depends_on: z.array(z.string()),
-  note: z.string().nullable(),
-  limit: z.number().int().nullable(),
-  optional: z.boolean(),
-});
-
-const PlannerOutput = z.object({
-  nodes: z.array(PlannedNode).min(3).max(20),
-  success_criteria: z.array(z.string()),
-  notes: z.array(z.string()),
-});
-
-export interface PlanRequest {
-  brief: string;
-  profile: ProfileSummary | null;
-  registryStats: { verified: number; unresolved: number; dead: number };
-  budget: Budget;
-}
-
-export async function plan(ctx: AgentContext, req: PlanRequest): Promise<AgentOutput & { graph: TaskGraph }> {
-  const out = emptyOutput();
-
-  const input = [
-    `Brief: ${req.brief}`,
-    req.profile
-      ? `Candidate: ${req.profile.total_years} years, titles ${req.profile.canonical_titles.join(" / ")}, ` +
-        `top skills ${req.profile.top_skills.slice(0, 12).join(", ")}, seniority hint ${req.profile.seniority_hint}`
-      : `Candidate: no resume supplied yet`,
-    `Registry: ${req.registryStats.verified} verified sources, ${req.registryStats.unresolved} unresolved, ${req.registryStats.dead} dead`,
-    `Budget: $${req.budget.max_cost_usd} / ${Math.round(req.budget.max_wall_time_ms / 1000)}s / ${req.budget.max_llm_calls} LLM calls`,
-  ].join("\n");
-
-  let graph: TaskGraph;
-  try {
-    const res = await ctx.llm.structured({
-      agent: "planner",
-      // Planning is judgment; §4 puts it on the strongest tier.
-      tier: "strong",
-      systemPrompt: SYSTEM,
-      input,
-      schema: PlannerOutput,
-      schemaName: "task_graph",
-      maxTokens: 4000,
-      effort: "high",
-      signal: ctx.signal,
-    });
-    out.usage = res.usage;
-    out.model = res.model;
-    out.llmCalls = 1;
-    out.attempts = res.attempts;
-    out.validationFailures = res.validationFailures;
-
-    graph = materialize(res.value.nodes, req.budget, res.value.success_criteria, res.value.notes);
-    const problems = validateGraph(graph);
-    if (problems.length > 0) {
-      // §8: a failed LLM node falls back to a deterministic default rather than
-      // failing the run. The default plan is the one in §7's example trace.
-      out.summary = `planner emitted an invalid DAG (${problems.map((p) => `${p.node_id}: ${p.problem}`).join("; ")}); using the default plan`;
-      out.degraded = out.summary;
-      graph = defaultSearchPlan(req.budget);
-    } else {
-      out.summary = `DAG: ${graph.nodes.length} nodes, ${res.value.success_criteria.length} success criteria`;
-    }
-  } catch (err) {
-    out.summary = `planner unavailable (${(err as Error).message}); using the default plan`;
-    out.degraded = out.summary;
-    graph = defaultSearchPlan(req.budget);
-  }
-
-  return { ...out, graph };
-}
-
-function materialize(
-  nodes: Array<z.infer<typeof PlannedNode>>,
-  budget: Budget,
-  success: string[],
-  notes: string[],
-): TaskGraph {
-  return {
-    nodes: nodes.map((n) => node(n.id, n.kind, n.label, n.depends_on, { optional: n.optional, note: n.note, limit: n.limit })),
-    budget,
-    success_criteria: success,
-    notes,
-  };
-}
 
 interface NodeOpts {
   optional?: boolean;

@@ -154,27 +154,6 @@
               </p>
             </label>
 
-            <!-- This checkbox used to read "LLM planner +$0.04" with the
-                 explanation hidden in a tooltip, which told you the price of
-                 something without telling you what it was. -->
-            <div class="field">
-              <span class="field__label">
-                plan the run with a model
-                <em>+$0.03 · 23s</em>
-              </span>
-              <label class="check">
-                <input id="use-planner" type="checkbox" checked />
-                <span>let a model choose the steps</span>
-              </label>
-              <p class="hint">
-                Off: the search runs a fixed eleven-step pipeline — find companies, harvest,
-                dedupe, filter, read each job, score, rank — the one drawn under <em>Task DAG</em>.
-                On: a model designs those steps instead, deciding what runs and in what order.
-                Measured just now, it spent $0.026 to produce the same eleven steps. Worth it only
-                when your search is unusual enough to need a different shape.
-              </p>
-            </div>
-
             <div class="field--row field--row-tight">
               <button class="btn btn--primary" type="submit" id="launch-btn">
                 <span>Run search</span>
@@ -298,6 +277,23 @@
         <div class="rail__more" aria-hidden="true"><span>more below</span></div>
       </aside>
     </main>
+
+    <!-- ── the résumé dock ───────────────────────────────────────────
+         The rendered PDF is the thing the whole run exists to produce, and
+         it used to appear only in the right rail, below the DAG and a
+         preview — off-screen at the moment it became ready. This floats it
+         at the corner the instant the render lands, and names the job it
+         was tailored for so "ready" says ready for what. -->
+    <div class="dock" id="dock" hidden>
+      <button type="button" class="dock__dismiss" id="dock-dismiss" aria-label="Dismiss">×</button>
+      <p class="dock__eyebrow" id="dock-eyebrow">Résumé ready</p>
+      <p class="dock__job" id="dock-job"></p>
+      <p class="dock__check" id="dock-check"></p>
+      <div class="dock__actions">
+        <a class="btn btn--small btn--primary" id="dock-pdf" download>Download PDF</a>
+        <a class="btn btn--small" id="dock-docx" download>DOCX</a>
+      </div>
+    </div>
 
     <!-- ── the registry ──────────────────────────────────────────────
          Eighty companies is too many for the left rail and too few to
