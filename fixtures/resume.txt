@@ -1,0 +1,33 @@
+Ehtesham Alam
+ehtesham.alam@example.com | +91 98765 43210 | Bengaluru, India
+github.com/example | linkedin.com/in/example
+
+SUMMARY
+Backend engineer with four years building and operating transactional services in Node.js
+and PostgreSQL. Comfortable owning a service from schema design through on-call.
+
+EXPERIENCE
+
+Software Development Engineer II, Wexa Payments — Bengaluru
+Mar 2023 - present
+- Owned the settlements service handling merchant payouts, written in Node.js and TypeScript on PostgreSQL.
+- Redesigned the ledger schema to remove a nightly reconciliation job that had become the main source of on-call pages.
+- Introduced contract tests across four internal REST APIs, cutting integration failures found in staging.
+- Ran the service through a migration from EC2 to ECS on AWS, including the Docker packaging and rollout plan.
+- Part of the weekly on-call rotation for the payments platform.
+
+Software Engineer, Trellis Logistics — Bengaluru
+Jul 2021 - Feb 2023
+- Built the shipment tracking API in Node.js, serving carrier webhooks and the customer dashboard.
+- Added Redis-backed caching in front of the carrier lookup path, which had been the slowest endpoint.
+- Wrote the Terraform for the team's staging environment on AWS.
+- Mentored two interns through their first production changes.
+
+PROJECTS
+pgqueue — A small Postgres-backed job queue in TypeScript, used in both roles above. SKIP LOCKED, retries, dead-letter table.
+
+SKILLS
+Node.js, TypeScript, PostgreSQL, REST APIs, AWS, Docker, Redis, Terraform, Git, Jest
+
+EDUCATION
+B.E. Computer Science, Visvesvaraya Technological University, 2021

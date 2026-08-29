@@ -1,0 +1,10 @@
+{
+  "company": "Postman",
+  "title": "Platform Engineer",
+  "location": "Bengaluru, India / Remote",
+  "posted_at": "2026-08-22T00:00:00Z",
+  "url": "https://www.postman.com/jobs/6006",
+  "apply_url": "https://www.postman.com/jobs/6006",
+  "department": "Platform",
+  "description": "Platform Engineer, Developer Infrastructure.\n\nYou will build the internal services and tooling other engineering teams depend on: deployment pipelines, service templates, and the REST APIs behind our internal developer portal. The stack is Node.js and TypeScript on PostgreSQL, deployed with Docker on AWS.\n\nRequirements:\n- 3-6 years building backend services.\n- Comfortable with AWS, Docker, and infrastructure as code (we use Terraform).\n- You have operated something you built, including being paged for it.\n\nNice to have: Kubernetes, Redis, experience with developer-facing products."
+}

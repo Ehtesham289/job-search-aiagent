@@ -1,0 +1,44 @@
+{
+  "name": "job-search-aiagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Layered multi-agent system for job discovery and resume tailoring.",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cli": "tsx src/interface/cli.ts",
+    "migrate": "tsx src/state/migrate.ts",
+    "demo": "tsx src/interface/cli.ts search --fixtures --brief \"Backend engineer, 4 years, Node and Postgres, Bengaluru or remote\" --resume fixtures/resume.txt",
+    "web": "tsx src/interface/server.ts --fixtures",
+    "web:live": "tsx src/interface/server.ts",
+    "web:offline": "tsx src/interface/server.ts --offline"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
+    "@langchain/langgraph": "^1.4.13",
+    "@langchain/langgraph-checkpoint": "^1.1.5",
+    "@langchain/langgraph-checkpoint-sqlite": "^1.0.4",
+    "better-sqlite3": "^11.10.0",
+    "cheerio": "^1.2.0",
+    "docx": "^9.7.1",
+    "p-limit": "^7.3.1",
+    "pdfkit": "^0.20.1",
+    "pdfjs-dist": "^4.10.38",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.10.0",
+    "@types/pdfkit": "^0.14.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.11"
+  },
+  "license": "MIT"
+}

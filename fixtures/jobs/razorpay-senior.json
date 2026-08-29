@@ -1,0 +1,10 @@
+{
+  "company": "Razorpay",
+  "title": "Senior Backend Engineer",
+  "location": "Bengaluru, India",
+  "posted_at": "2026-07-02T00:00:00Z",
+  "url": "https://razorpay.com/jobs/4004",
+  "apply_url": "https://razorpay.com/jobs/4004",
+  "department": "Payments",
+  "description": "Senior Backend Engineer, Payments Core.\n\nYou will lead the design of payment orchestration services, mentor a team of four to six engineers, and set the technical direction for the payments core roadmap.\n\nRequirements:\n- 8-12 years of backend engineering experience, with at least 3 years leading technical work.\n- Deep experience with distributed systems, Kafka, and PostgreSQL at scale.\n- Track record of owning a critical system end to end, including its on-call burden.\n- Experience with Kubernetes in production.\n\nThis role carries formal technical leadership expectations."
+}

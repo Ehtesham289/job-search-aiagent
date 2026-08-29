@@ -1,0 +1,10 @@
+{
+  "company": "zeta",
+  "title": "Backend Engineer (Bengaluru)",
+  "location": "Bengaluru",
+  "posted_at": "2026-08-10T00:00:00Z",
+  "url": "https://aggregator.example.com/jobs/zeta-backend-9911",
+  "apply_url": "https://aggregator.example.com/redirect/9911",
+  "department": null,
+  "description": "Backend Engineer at Zeta, Bengaluru. Node.js, TypeScript, PostgreSQL, AWS.\n\nDesign and operate services that move money. Own PostgreSQL schema design and REST APIs consumed by partner banks. 3-6 years of experience required."
+}

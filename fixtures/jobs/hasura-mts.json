@@ -1,0 +1,10 @@
+{
+  "company": "Hasura",
+  "title": "Member of Technical Staff",
+  "location": "Remote (India)",
+  "posted_at": "2026-08-20T00:00:00Z",
+  "url": "https://jobs.lever.co/hasura/3003",
+  "apply_url": "https://jobs.lever.co/hasura/3003",
+  "department": "Engineering",
+  "description": "Member of Technical Staff, Data Plane. Remote within India.\n\nYou will work on the systems that sit between customer applications and their databases. Most of the code is TypeScript and Node.js, with PostgreSQL underneath.\n\nWe expect:\n- 4+ years writing backend software.\n- Deep familiarity with PostgreSQL, including connection pooling and query planning.\n- Experience running services in Docker on AWS or GCP.\n- Willingness to work in a small team where the on-call rotation is real.\n\nNice to have: Kubernetes, Terraform, open-source contributions."
+}

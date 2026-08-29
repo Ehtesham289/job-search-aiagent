@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>job-search-aiagent · console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Instrument Sans for prose, JetBrains Mono for data. Condensed mono for
+         every word was the readability problem this replaces. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/app.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0a08'/%3E%3Crect x='3' y='3' width='4' height='4' fill='%23ffb020'/%3E%3Crect x='9' y='9' width='4' height='4' fill='%237bb661'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div class="mode-strip" id="mode-strip" hidden></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">job-search-aiagent</span>
+        <span class="brand__sub">agent console</span>
+      </div>
+
+      <div class="topbar__meters">
+        <div class="meter" id="meter-cost" title="Budget governor: spend against the run's cost ceiling">
+          <span class="meter__label">spend</span>
+          <span class="meter__track"><span class="meter__fill"></span></span>
+          <span class="meter__value">—</span>
+        </div>
+        <div class="meter" id="meter-calls" title="Model calls against the run's call ceiling">
+          <span class="meter__label">calls</span>
+          <span class="meter__track"><span class="meter__fill"></span></span>
+          <span class="meter__value">—</span>
+        </div>
+        <div class="meter meter--plain" id="meter-clock">
+          <span class="meter__label">elapsed</span>
+          <span class="meter__value">—</span>
+        </div>
+      </div>
+
+      <div class="topbar__right">
+        <span class="badge" id="mode-badge">…</span>
+        <span class="status" id="run-status" data-state="idle">idle</span>
+      </div>
+    </header>
+
+    <main class="grid">
+      <!-- ── left rail ─────────────────────────────────────────────── -->
+      <aside class="rail rail--left">
+        <section class="panel panel--launch" id="launch">
+          <h2 class="panel__title">New run</h2>
+          <form id="search-form" class="form">
+            <label class="field">
+              <span class="field__label">brief</span>
+              <textarea
+                id="brief"
+                rows="3"
+                spellcheck="false"
+                placeholder="The role you want. Upload a résumé and this fills itself in."
+              ></textarea>
+            </label>
+
+            <div class="field">
+              <span class="field__label">your résumé</span>
+              <label class="drop" id="drop">
+                <input id="resume-file" type="file" accept=".pdf,.docx,.txt,.md" hidden />
+                <span class="drop__icon" aria-hidden="true">⇪</span>
+                <span class="drop__main">Drop a PDF, DOCX or TXT here</span>
+                <span class="drop__sub">or click to choose a file</span>
+              </label>
+              <p class="drop__status" id="resume-status" hidden></p>
+            </div>
+
+            <details class="field field--details">
+              <summary>other ways to supply it</summary>
+              <label class="field">
+                <span class="field__label">path on this machine</span>
+                <input id="resume-path" type="text" spellcheck="false" placeholder="fixtures/resume.txt" />
+              </label>
+              <label class="field">
+                <span class="field__label">or paste the text</span>
+                <textarea id="resume-text" rows="4" spellcheck="false" placeholder="Paste résumé text…"></textarea>
+              </label>
+            </details>
+
+            <div class="field">
+              <span class="field__label">where you want to work</span>
+              <input
+                id="locations"
+                type="text"
+                spellcheck="false"
+                placeholder="Kolkata, Bengaluru — or leave blank for anywhere"
+              />
+              <label class="check check--tight">
+                <input id="remote-ok" type="checkbox" checked />
+                <span>remote is fine</span>
+              </label>
+              <p class="hint">
+                Where you <em>want</em> to be, not where you are now. This is never read off your résumé —
+                people move for a better offer.
+              </p>
+            </div>
+
+            <div class="field" id="companies-field">
+              <span class="field__label">
+                companies to search
+                <button type="button" class="linkish" id="registry-count" title="See every company in the registry and choose which ones to search"></button>
+              </span>
+              <div class="field--row field--row-tight">
+                <input
+                  id="discover"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="gitlab, ramp, zerodha.com"
+                />
+                <button class="btn btn--small" type="button" id="discover-btn">add</button>
+              </div>
+              <label class="check check--tight" title="Searches the web for ATS boards matching your role, verifies each by pulling a real posting, and keeps them. Costs about one web search per run.">
+                <input id="auto-discover" type="checkbox" checked />
+                <span>find new companies for me <em>+~$0.02</em></span>
+              </label>
+              <p class="hint" id="registry-hint">
+                This is why a search returns what it returns: it can only find jobs on boards it knows.
+                Each name is looked up, its ATS identified, and verified by pulling a real posting —
+                all plain HTTP, so it needs no API key.
+              </p>
+            </div>
+
+            <label class="field">
+              <span class="field__label">cost preset</span>
+              <select id="preset">
+                <option value="cheap">cheap — Haiku, narrow funnel</option>
+                <option value="balanced" selected>balanced — Sonnet</option>
+                <option value="thorough">thorough — Opus, wide funnel</option>
+              </select>
+              <p class="hint" id="preset-hint"></p>
+            </label>
+
+            <label class="field field--money">
+              <span class="field__label">budget $</span>
+              <input id="budget" type="number" step="0.05" min="0.05" value="0.40" />
+              <p class="hint">
+                A hard ceiling. The run stops cleanly when it is reached and returns what it
+                had, rather than overspending or failing.
+              </p>
+            </label>
+
+            <!-- This checkbox used to read "LLM planner +$0.04" with the
+                 explanation hidden in a tooltip, which told you the price of
+                 something without telling you what it was. -->
+            <div class="field">
+              <span class="field__label">
+                plan the run with a model
+                <em>+$0.03 · 23s</em>
+              </span>
+              <label class="check">
+                <input id="use-planner" type="checkbox" checked />
+                <span>let a model choose the steps</span>
+              </label>
+              <p class="hint">
+                Off: the search runs a fixed eleven-step pipeline — find companies, harvest,
+                dedupe, filter, read each job, score, rank — the one drawn under <em>Task DAG</em>.
+                On: a model designs those steps instead, deciding what runs and in what order.
+                Measured just now, it spent $0.026 to produce the same eleven steps. Worth it only
+                when your search is unusual enough to need a different shape.
+              </p>
+            </div>
+
+            <div class="field--row field--row-tight">
+              <button class="btn btn--primary" type="submit" id="launch-btn">
+                <span>Run search</span>
+                <span class="btn__key">↵</span>
+              </button>
+              <button class="btn btn--small" type="button" id="reset-btn"
+                title="Stop following the current run and clear the console. Nothing stored is deleted — past runs stay in History.">
+                clear
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel panel--history">
+          <h2 class="panel__title">History</h2>
+          <ul class="runs" id="runs"></ul>
+        </section>
+
+        <!-- Sticks to the bottom edge of the rail while it scrolls, and is
+             hidden once you reach the end. Without it the column simply looked
+             cut off: macOS overlay scrollbars are invisible until you are
+             already scrolling, so nothing said there was more below. -->
+        <div class="rail__more" aria-hidden="true"><span>more below</span></div>
+      </aside>
+
+      <!-- ── centre ────────────────────────────────────────────────── -->
+      <section class="centre">
+        <div class="panel panel--stream">
+          <h2 class="panel__title">
+            Agent activity
+            <span class="panel__meta" id="stream-meta">waiting for a run</span>
+          </h2>
+          <!-- Visible only while a run is live. A harvest can spend three
+               minutes on one node, and a still screen during that reads as a
+               hang rather than as work. -->
+          <div class="working" id="working" hidden>
+            <span class="working__bar" aria-hidden="true"></span>
+            <span class="working__dot" aria-hidden="true"></span>
+            <span class="working__what" id="working-what">starting…</span>
+            <span class="working__clock" id="working-clock">0s</span>
+          </div>
+          <ol class="stream" id="stream">
+            <li class="stream__idle">
+              <p>Nothing running.</p>
+              <p class="dim">
+                Every node writes one line here as it finishes: which agent, which model tier, what it decided,
+                what it cost. Code nodes cost nothing and say so.
+              </p>
+            </li>
+          </ol>
+        </div>
+
+        <div class="panel panel--results" id="results-panel" hidden>
+          <h2 class="panel__title">
+            Ranked results
+            <span class="panel__meta" id="results-meta"></span>
+          </h2>
+          <ol class="results" id="results"></ol>
+          <!-- The rubric only ever scores the top ~30 that survive the funnel,
+               so without excluding what you have already seen, a second search
+               ranks the same thirty again. -->
+          <div class="results__more" id="more-bar" hidden>
+            <button class="btn btn--small" type="button" id="more-btn">find more jobs</button>
+            <span class="hint" id="more-hint">
+              Runs the same search again with these results excluded and the title match
+              widened, so it returns jobs you have not seen.
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── right rail ────────────────────────────────────────────── -->
+      <aside class="rail rail--right">
+        <section class="panel panel--questions">
+          <h2 class="panel__title">
+            Questions
+            <span class="panel__meta" id="questions-meta">0 open</span>
+          </h2>
+          <div id="questions">
+            <p class="empty">
+              When an agent's confidence is low, or an edit has no evidence behind it, it asks a specific question
+              here instead of guessing.
+            </p>
+          </div>
+        </section>
+
+        <!-- Sits with the other read-outs rather than under the launch form:
+             it describes the run in progress, not what you are about to
+             launch, and it left the left rail carrying the whole form plus
+             history while this column sat half empty. -->
+        <section class="panel panel--lattice">
+          <h2 class="panel__title">
+            Task DAG
+            <span class="panel__meta" id="lattice-meta">—</span>
+          </h2>
+          <div class="lattice" id="lattice">
+            <p class="empty">The planner's graph appears here, and lights up as the scheduler dispatches each superstep.</p>
+          </div>
+          <ul class="legend">
+            <li><i class="dot dot--pending"></i>pending</li>
+            <li><i class="dot dot--running"></i>running</li>
+            <li><i class="dot dot--done"></i>done</li>
+            <li><i class="dot dot--skipped"></i>skipped</li>
+            <li><i class="dot dot--failed"></i>failed</li>
+          </ul>
+        </section>
+
+        <section class="panel panel--artifacts" id="artifacts-panel" hidden>
+          <h2 class="panel__title">Artifacts</h2>
+          <div id="artifacts"></div>
+        </section>
+
+        <section class="panel panel--trace" id="trace-panel" hidden>
+          <h2 class="panel__title">
+            Cost by agent
+            <span class="panel__meta" id="trace-meta"></span>
+          </h2>
+          <table class="trace" id="trace"></table>
+        </section>
+
+        <div class="rail__more" aria-hidden="true"><span>more below</span></div>
+      </aside>
+    </main>
+
+    <!-- ── the registry ──────────────────────────────────────────────
+         Eighty companies is too many for the left rail and too few to
+         paginate, so it lives in a dialog with a filter box. -->
+    <dialog class="sheet" id="registry-dialog">
+      <header class="sheet__head">
+        <div>
+          <h2 class="sheet__title">Companies to search</h2>
+          <p class="sheet__sub" id="registry-summary">—</p>
+        </div>
+        <button type="button" class="btn btn--small" id="registry-close">close</button>
+      </header>
+
+      <div class="sheet__tools">
+        <input id="registry-filter" type="search" spellcheck="false" placeholder="Filter by company or ATS…" />
+        <button type="button" class="btn btn--small" id="registry-all">enable all</button>
+        <button type="button" class="btn btn--small" id="registry-none">disable all</button>
+      </div>
+
+      <ul class="sources" id="registry-list"></ul>
+
+      <footer class="sheet__foot">
+        A company switched off stays in the registry — its board is still verified, it is just
+        skipped when harvesting. Turning it back on needs no re-verification.
+      </footer>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

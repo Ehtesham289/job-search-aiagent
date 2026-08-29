@@ -1,0 +1,1195 @@
+/* job-search-aiagent console
+   ------------------------------------------------------------------
+   An instrument panel, not a dashboard — but an instrument panel you can
+   read for an hour without strain.
+
+   Two rules govern this file.
+
+   1. The shell never scrolls. The window is the frame; each column scrolls
+      inside it. A run that emits ninety events must not push the launch form
+      off the top of the world, and reading a result must not lose your place
+      in the stream.
+
+   2. Monospace is for data, not for prose. The previous revision set every
+      word — hints, descriptions, verdicts — in 12.5px mono on a textured
+      ground, which is why it was hard to read. Numbers, ids, model names and
+      timings stay mono because column alignment carries meaning there.
+      Sentences get a text face at a size meant for sentences.
+   ------------------------------------------------------------------ */
+
+:root {
+  /* Ground is a cool near-black with a hint of blue, so the amber accent
+     reads as warm against it rather than muddying into it. */
+  --ground: #0a0b0d;
+  --panel: #101215;
+  --panel-2: #161a1e;
+  --panel-3: #1c2126;
+  --rule: #232930;
+  --rule-lit: #333c45;
+
+  /* Contrast is the whole point of this revision. The old --ink-dim sat at
+     about 3:1 on panel; these clear 7:1 and 4.5:1 respectively. */
+  --ink: #e8ecf1;
+  --ink-dim: #a8b3c0;
+  --ink-faint: #78838f;
+
+  --amber: #ffb443;
+  --amber-deep: #d98c1c;
+  --amber-wash: rgba(255, 180, 67, 0.12);
+  --green: #5fd39a;
+  --green-wash: rgba(95, 211, 154, 0.12);
+  --red: #ff7a63;
+  --red-wash: rgba(255, 122, 99, 0.12);
+  --cyan: #5cc4d6;
+  --cyan-wash: rgba(92, 196, 214, 0.12);
+  --violet: #a99bf5;
+
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --rail-l: 336px;
+  --rail-r: 340px;
+  --gap: 12px;
+  --radius: 6px;
+  --topbar-h: 52px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+/* Panels set `display: flex`, which outranks the UA's `[hidden]` rule and
+   left empty "Ranked results" and "Artifacts" headers on screen before a run
+   had produced either. Hidden must win. */
+[hidden] { display: none !important; }
+
+/* The shell. `overflow: hidden` here is what makes every scroll below a
+   local one — remove it and the whole page scrolls again. */
+body {
+  margin: 0;
+  height: 100dvh;
+  overflow: hidden;
+  /* Flex column rather than a fixed-row grid: the mode strip appears and
+     disappears, and a column that simply doesn't reserve space for a hidden
+     child is more forgiving than a row template that has to be kept in sync. */
+  display: flex;
+  flex-direction: column;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Anything carrying a number, an id, a model name or a duration. */
+.mono, .ev__n, .ev__tier, .ev__cost, .ev__tail, .meter__value, .run__id,
+.score, .trace td, .trace th, code, kbd { font-family: var(--mono); }
+
+/* The grain layer is retained as an element so the markup need not change,
+   but it no longer renders: texture behind 12px text was half the problem. */
+.grain { display: none; }
+
+::selection { background: var(--amber); color: #0a0b0d; }
+
+/* ── scrollbars ───────────────────────────────────────────────────────
+   Thin and self-coloured. With five independent scroll regions, default
+   chrome scrollbars would carve the layout into strips. */
+* { scrollbar-width: thin; scrollbar-color: var(--rule-lit) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--rule-lit);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: #4a555f; background-clip: content-box; }
+
+/* ── topbar ───────────────────────────────────────────────────────── */
+
+.topbar {
+  flex: 0 0 var(--topbar-h);
+  /* The strip precedes the topbar in the markup; the bar belongs on top. */
+  order: -1;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 0 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule);
+  /* Sits above the scrolling columns so nothing bleeds under it. */
+  position: relative;
+  z-index: 5;
+}
+
+.brand { display: flex; align-items: baseline; gap: 8px; }
+
+.brand__mark {
+  width: 9px; height: 9px;
+  align-self: center;
+  border-radius: 2px;
+  background: var(--amber);
+  box-shadow: 0 0 12px var(--amber-deep);
+}
+
+.brand__name {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.brand__sub {
+  font-size: 12px;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+
+.topbar__meters { display: flex; align-items: center; gap: 18px; margin-left: auto; }
+
+.meter { display: flex; align-items: center; gap: 8px; }
+
+.meter__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-faint);
+}
+
+.meter__track {
+  width: 68px; height: 4px;
+  border-radius: 99px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+
+.meter__fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: var(--green);
+  transition: width 0.4s ease, background-color 0.3s ease;
+}
+
+.meter[data-warn="true"] .meter__fill { background: var(--amber); }
+.meter[data-over="true"] .meter__fill { background: var(--red); }
+
+.meter__value { font-size: 12px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+.topbar__right { display: flex; align-items: center; gap: 10px; }
+
+.badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  border: 1px solid var(--rule-lit);
+  color: var(--ink-dim);
+}
+
+.status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 99px;
+  letter-spacing: 0.02em;
+}
+.status[data-state="idle"]    { color: var(--ink-faint); background: var(--panel-2); }
+.status[data-state="running"] { color: var(--amber); background: var(--amber-wash); }
+.status[data-state="done"]    { color: var(--green); background: var(--green-wash); }
+.status[data-state="failed"]  { color: var(--red); background: var(--red-wash); }
+.status[data-state="running"]::before {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin-right: 6px;
+  border-radius: 99px;
+  background: currentColor;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* In the flow, not floating over it — as a fixed banner it covered the first
+   row of panel titles underneath. */
+.mode-strip {
+  flex: 0 0 auto;
+  padding: 7px 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  background: var(--amber-wash);
+  color: var(--amber);
+  border-bottom: 1px solid var(--amber-deep);
+}
+.mode-strip strong { color: #ffd08a; }
+
+/* ── the three columns ────────────────────────────────────────────────
+   `minmax(0, 1fr)` on the centre and `min-height: 0` on the rails are what
+   let the children scroll instead of stretching the grid. */
+
+.grid {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: var(--rail-l) minmax(0, 1fr) var(--rail-r);
+  gap: var(--gap);
+  padding: var(--gap);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rail, .centre {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 3px;
+}
+
+/* The rails get a permanently visible groove rather than macOS's overlay
+   scrollbar, which only appears once you are already scrolling — by which
+   point you have discovered the thing it was meant to advertise. */
+.rail { scrollbar-color: var(--rule-lit) var(--panel); }
+.rail::-webkit-scrollbar { width: 10px; }
+.rail::-webkit-scrollbar-track {
+  background: var(--panel);
+  border-radius: 99px;
+}
+.rail::-webkit-scrollbar-thumb {
+  background-color: var(--rule-lit);
+  border: 2px solid var(--panel);
+  border-radius: 99px;
+  background-clip: content-box;
+}
+.rail::-webkit-scrollbar-thumb:hover { background-color: #55616d; }
+
+/* "More below", pinned to the bottom of the scrolling column.
+   `position: sticky` inside the scroller is what keeps it at the visible
+   edge; the negative margin means it overlays the last panel rather than
+   reserving a row of its own. */
+.rail__more {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  flex: 0 0 auto;
+  height: 46px;
+  margin-top: calc(-46px - var(--gap));
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
+  background: linear-gradient(to top, var(--ground) 22%, rgba(10, 11, 13, 0.82) 55%, transparent);
+  opacity: 1;
+  transition: opacity 0.18s ease;
+}
+
+.rail__more span {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  background: var(--panel-2);
+  border: 1px solid var(--rule);
+  border-radius: 99px;
+  padding: 2px 9px;
+}
+.rail__more span::after { content: " ↓"; color: var(--amber); }
+
+/* Hidden when the column is already at the end, or short enough not to
+   scroll at all — an affordance that lies is worse than none. */
+.rail[data-more="false"] .rail__more { opacity: 0; }
+
+/* The centre column's stream is the one region that should fill the height
+   rather than scroll the column, so its panel flexes and the list inside it
+   scrolls. */
+.centre { overflow: hidden; }
+
+/* ── panels ───────────────────────────────────────────────────────── */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Panels stacked inside a scrolling rail must keep their natural height. As
+   flex children they defaulted to `flex-shrink: 1`, so the rail squeezed them
+   into each other — the launch form's last field ended up printed underneath
+   the Task DAG panel. The rail scrolls; the panels do not compress. */
+.rail > .panel { flex: 0 0 auto; }
+
+.panel__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 11px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+  border-radius: var(--radius) var(--radius) 0 0;
+  /* Deliberately not sticky. The rail is the scroll container, not the panel,
+     so sticky titles from three stacked panels would pile up at the top of
+     the rail and cover each other. The panels that scroll internally — the
+     stream and the results — keep their titles outside the scrolling list, so
+     they stay visible without it. */
+  flex: 0 0 auto;
+}
+
+.panel__meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-faint);
+  text-align: right;
+}
+
+.panel__meta[data-hint="true"] { color: var(--amber); }
+
+.empty {
+  margin: 0;
+  padding: 16px 14px;
+  color: var(--ink-faint);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── form ─────────────────────────────────────────────────────────── */
+
+.form { padding: 14px; display: flex; flex-direction: column; gap: 15px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.field__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+.field__label em {
+  font-family: var(--mono);
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-faint);
+}
+
+input[type="text"], input[type="number"], textarea, select {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="number"] { font-family: var(--mono); }
+
+textarea { resize: vertical; min-height: 60px; }
+
+input::placeholder, textarea::placeholder { color: var(--ink-faint); }
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--amber-deep);
+  box-shadow: 0 0 0 3px var(--amber-wash);
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%),
+                    linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
+option { background: var(--panel-2); color: var(--ink); }
+
+.field--row { flex-direction: row; align-items: flex-end; gap: 12px; }
+.field--row-tight { flex-direction: row; align-items: center; gap: 7px; }
+.field--tight { flex: 0 0 96px; }
+/* A currency input wants to be the width of a number, but its hint below
+   wants the whole column — so constrain the input, not the field. */
+.field--money > input { width: 110px; }
+
+/* Inputs are `width: 100%`, which inside a flex row claims the whole line and
+   pushed the "add" button onto the next one. */
+.field--row-tight > input { flex: 1 1 auto; min-width: 0; width: auto; }
+
+.field--details > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ink-faint);
+  padding: 3px 0;
+  list-style: none;
+  user-select: none;
+}
+.field--details > summary::-webkit-details-marker { display: none; }
+.field--details > summary::before { content: "▸ "; color: var(--rule-lit); }
+.field--details[open] > summary::before { content: "▾ "; }
+.field--details > summary:hover { color: var(--ink-dim); }
+.field--details[open] { display: flex; flex-direction: column; gap: 10px; }
+
+.hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+.hint em { color: var(--ink-dim); font-style: italic; }
+.hint[data-state="empty"] { color: var(--amber); }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.check--tight { font-size: 12.5px; }
+.check em {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 11px;
+  color: var(--amber-deep);
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  width: 15px; height: 15px;
+  flex: 0 0 15px;
+  border: 1px solid var(--rule-lit);
+  border-radius: 3px;
+  background: var(--ground);
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+input[type="checkbox"]:checked { background: var(--amber); border-color: var(--amber); }
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4.5px; top: 1px;
+  width: 4px; height: 8px;
+  border: solid #0a0b0d;
+  border-width: 0 2px 2px 0;
+  transform: rotate(43deg);
+}
+
+/* ── résumé drop zone ─────────────────────────────────────────────── */
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 18px 12px;
+  text-align: center;
+  border: 1px dashed var(--rule-lit);
+  border-radius: 5px;
+  background: var(--panel-2);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.drop:hover, .drop.is-suggested { border-color: var(--amber-deep); background: var(--amber-wash); }
+.drop__icon { font-size: 17px; color: var(--amber); line-height: 1; }
+.drop__main { font-size: 13px; color: var(--ink-dim); }
+.drop__sub { font-size: 11.5px; color: var(--ink-faint); }
+
+.drop__status {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+  padding: 7px 9px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  border-left: 2px solid var(--rule-lit);
+}
+.drop__status[data-ok="true"]  { color: var(--green); border-left-color: var(--green); background: var(--green-wash); }
+.drop__status[data-ok="false"] { color: var(--red); border-left-color: var(--red); background: var(--red-wash); }
+
+/* ── buttons ──────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--panel-3);
+  border: 1px solid var(--rule-lit);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.06s ease;
+}
+.btn:hover:not(:disabled) { background: #232a31; border-color: #45505b; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn--primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #14100a;
+  font-weight: 700;
+}
+.btn--primary:hover:not(:disabled) { background: #ffc164; border-color: #ffc164; }
+
+.btn--small { padding: 8px 12px; font-size: 12px; flex: 0 0 auto; }
+
+.btn__key {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* ── task DAG ─────────────────────────────────────────────────────── */
+
+.lattice { padding: 10px 6px; overflow-x: auto; }
+.lattice svg { display: block; width: 100%; }
+
+.edge {
+  fill: none;
+  stroke: var(--rule-lit);
+  stroke-width: 1.2;
+  transition: stroke 0.25s ease;
+}
+.edge.is-live { stroke: var(--amber); stroke-width: 1.8; }
+
+.node rect { fill: var(--panel-3); stroke: var(--rule-lit); stroke-width: 1; transition: fill 0.2s ease, stroke 0.2s ease; }
+.node text { fill: var(--ink-faint); font-family: var(--mono); font-size: 9.5px; transition: fill 0.2s ease; }
+.node .halo { fill: none; stroke: none; }
+
+.node[data-state="running"] rect { fill: var(--amber); stroke: var(--amber); }
+.node[data-state="running"] text { fill: var(--amber); }
+.node[data-state="running"] .halo { fill: var(--amber-wash); animation: halo 1.5s ease-out infinite; }
+.node[data-state="ok"] rect,
+.node[data-state="done"] rect { fill: var(--green); stroke: var(--green); }
+.node[data-state="ok"] text,
+.node[data-state="done"] text { fill: var(--ink-dim); }
+.node[data-state="skipped"] rect { fill: transparent; stroke: var(--rule-lit); stroke-dasharray: 2 2; }
+.node[data-state="failed"] rect { fill: var(--red); stroke: var(--red); }
+.node[data-state="failed"] text { fill: var(--red); }
+.node[data-added="true"] rect { stroke: var(--violet); stroke-width: 1.6; }
+
+@keyframes halo {
+  0%   { r: 6; opacity: 0.9; }
+  100% { r: 15; opacity: 0; }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  padding: 9px 14px;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.legend li { display: flex; align-items: center; gap: 5px; }
+.dot { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+.dot--pending { background: var(--panel-3); border: 1px solid var(--rule-lit); }
+.dot--running { background: var(--amber); }
+.dot--done    { background: var(--green); }
+.dot--skipped { background: transparent; border: 1px dashed var(--rule-lit); }
+.dot--failed  { background: var(--red); }
+
+/* ── run history ──────────────────────────────────────────────────── */
+
+.runs { margin: 0; padding: 6px; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+
+.runs li { border-radius: 4px; border-left: 2px solid transparent; }
+.runs li[data-active="true"] { background: var(--panel-2); border-left-color: var(--amber); }
+
+/* Each row is a <button>. Without this it rendered with the platform's own
+   light button chrome — the one thing on the page that looked like a form
+   control from another application. */
+.runs li > button {
+  display: block;
+  width: 100%;
+  padding: 8px 9px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.13s ease;
+}
+.runs li > button:hover { background: var(--panel-2); }
+
+.run__id { font-size: 11.5px; color: var(--ink-dim); }
+.run__kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  margin-right: 7px;
+}
+.run__brief {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── agent activity stream ────────────────────────────────────────────
+   The panel fills the centre column and the list scrolls inside it, so the
+   newest line is always at the bottom of a fixed frame. */
+
+.panel--stream { flex: 1 1 auto; min-height: 0; }
+
+.stream {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.stream__idle { padding: 20px 16px; color: var(--ink-dim); font-size: 13px; }
+.stream__idle p { margin: 0 0 8px; }
+.stream__idle .dim { color: var(--ink-faint); font-size: 12.5px; line-height: 1.6; }
+
+.ev {
+  display: grid;
+  grid-template-columns: 26px 132px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 14px;
+  border-left: 2px solid transparent;
+  animation: ev-in 0.18s ease-out;
+}
+.ev + .ev { border-top: 1px solid rgba(255, 255, 255, 0.035); }
+.ev:hover { background: rgba(255, 255, 255, 0.022); }
+
+@keyframes ev-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+
+.ev__n {
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev__agent {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cyan);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Summaries are sentences — set them as sentences. Wrapping rather than
+   truncating matters here: the reason a node degraded lives at the end of
+   the line. */
+.ev__summary {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ev__summary strong { color: var(--amber); font-weight: 700; }
+
+.ev__tail { display: flex; align-items: baseline; gap: 9px; font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+
+.ev__tier {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  color: var(--ink-dim);
+}
+.ev__tier[data-code="true"] { background: transparent; color: var(--ink-faint); border: 1px solid var(--rule); }
+
+.ev__cost { color: var(--amber-deep); font-variant-numeric: tabular-nums; }
+
+.ev[data-status="failed"]  { border-left-color: var(--red); background: var(--red-wash); }
+.ev[data-status="skipped"] { opacity: 0.6; }
+
+.ev--sub {
+  grid-template-columns: 26px minmax(0, 1fr);
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-top: 0 !important;
+}
+.ev--sub .ev__summary { font-size: 12.5px; color: var(--ink-faint); }
+
+.ev--replan { grid-template-columns: 26px minmax(0, 1fr); border-left-color: var(--violet); background: rgba(169, 155, 245, 0.07); }
+.ev--ask    { grid-template-columns: 26px minmax(0, 1fr); border-left-color: var(--amber); background: var(--amber-wash); }
+.ev--final  { grid-template-columns: minmax(0, 1fr); border-left-color: var(--green); background: var(--green-wash); padding: 11px 14px; }
+.ev--final .ev__summary { font-size: 13.5px; font-weight: 600; }
+
+.skipped-list { margin: 6px 0 0; padding-left: 17px; font-size: 12.5px; color: var(--ink-faint); }
+
+/* ── results ──────────────────────────────────────────────────────── */
+
+.panel--results { flex: 0 0 auto; max-height: 52%; }
+
+.results { margin: 0; padding: 0; list-style: none; overflow-y: auto; min-height: 0; }
+
+.result {
+  border-bottom: 1px solid var(--rule);
+  border-left: 2px solid transparent;
+  animation: ev-in 0.2s ease-out backwards;
+}
+.result[data-band="high"] { border-left-color: var(--green); }
+.result[data-band="mid"]  { border-left-color: var(--amber); }
+.result[data-band="low"]  { border-left-color: var(--rule-lit); }
+.result[data-selected="true"] { background: var(--amber-wash); }
+
+.result__head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.result__head:hover { background: rgba(255, 255, 255, 0.028); }
+
+.score {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.score small { font-size: 9px; color: var(--ink-faint); font-weight: 400; }
+
+.score__bar {
+  display: block;
+  height: 3px;
+  margin-top: 3px;
+  border-radius: 99px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+.score__bar i { display: block; height: 100%; background: var(--amber); border-radius: 99px; }
+.result[data-band="high"] .score__bar i { background: var(--green); }
+
+.result__title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.result__sub { font-size: 12px; color: var(--ink-faint); }
+
+.result__tags { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+
+.tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.tag--flag { background: var(--red-wash); color: var(--red); }
+.tag--reconciled { background: rgba(169, 155, 245, 0.14); color: var(--violet); }
+.tag--deterministic { background: var(--panel-3); color: var(--ink-faint); }
+
+.result__body { display: none; padding: 0 14px 14px 78px; }
+.result[data-open="true"] .result__body { display: block; }
+
+.dims { margin: 0 0 10px; display: flex; flex-direction: column; gap: 5px; }
+
+.dim-row {
+  display: grid;
+  grid-template-columns: 118px 62px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.dim-row dt { color: var(--ink-dim); }
+.dim-row dd { margin: 0; color: var(--ink-faint); line-height: 1.5; }
+
+.bar { height: 4px; border-radius: 99px; background: var(--panel-3); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--cyan); border-radius: 99px; }
+
+.note {
+  margin: 8px 0 0;
+  padding: 8px 11px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  background: var(--panel-2);
+  border-left: 2px solid var(--rule-lit);
+  color: var(--ink-dim);
+}
+.note--flag { background: var(--red-wash); border-left-color: var(--red); color: var(--ink); }
+.note--gaps { background: var(--amber-wash); border-left-color: var(--amber-deep); }
+.note--reconciled { background: rgba(169, 155, 245, 0.1); border-left-color: var(--violet); }
+.note strong { color: var(--ink); }
+.note ul { margin: 5px 0 0; padding-left: 17px; }
+
+.result__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; align-items: center; }
+.result__actions a { color: var(--cyan); font-size: 12.5px; text-decoration: none; }
+.result__actions a:hover { text-decoration: underline; }
+
+.dim { color: var(--ink-faint); }
+
+/* ── questions ────────────────────────────────────────────────────── */
+
+.q { padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+.q[data-answered="true"] { opacity: 0.5; }
+
+.q__kind {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--amber);
+  display: block;
+  margin-bottom: 5px;
+}
+.q__text { font-size: 13px; line-height: 1.55; color: var(--ink); margin: 0 0 9px; }
+.q__opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+.q__opts button {
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--rule-lit);
+  background: var(--panel-2);
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.q__opts button:hover { border-color: var(--amber-deep); color: var(--amber); }
+.q__opts button[data-opt="selected"] { background: var(--amber); border-color: var(--amber); color: #14100a; }
+.q__form { display: flex; gap: 7px; }
+.q__answer { flex: 1 1 auto; }
+
+/* ── artifacts ────────────────────────────────────────────────────── */
+
+.artifact { padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+.artifact__links { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 7px; }
+.artifact__links a { color: var(--cyan); font-size: 12.5px; text-decoration: none; }
+.artifact__links a:hover { text-decoration: underline; }
+.artifact__check { font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
+.artifact__check[data-ok="true"] { color: var(--green); }
+.artifact__check[data-ok="false"] { color: var(--red); }
+
+/* ── the registry sheet ───────────────────────────────────────────── */
+
+/* The count in the field label is a button. It should read as a control
+   without wearing a button's chrome inside a label. */
+.linkish {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--cyan);
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted currentColor;
+  padding: 0;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.linkish:hover { color: var(--amber); }
+.linkish[data-off="true"] { color: var(--amber); }
+
+.sheet {
+  width: min(620px, 92vw);
+  max-height: 82vh;
+  padding: 0;
+  border: 1px solid var(--rule-lit);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+.sheet::backdrop { background: rgba(6, 7, 9, 0.72); }
+.sheet:not([open]) { display: none; }
+
+.sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+.sheet__title { margin: 0; font-size: 15px; font-weight: 700; }
+.sheet__sub { margin: 3px 0 0; font-size: 12.5px; color: var(--ink-faint); }
+
+.sheet__tools {
+  display: flex;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+.sheet__tools input { flex: 1 1 auto; min-width: 0; }
+input[type="search"] {
+  padding: 8px 10px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  outline: none;
+}
+input[type="search"]:focus { border-color: var(--amber-deep); box-shadow: 0 0 0 3px var(--amber-wash); }
+
+.sources {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.src[data-on="false"] .src__name { color: var(--ink-faint); text-decoration: line-through; }
+.src[data-on="false"] { opacity: 0.72; }
+/* Unresolved: nothing to switch, so the row reads as informational. */
+.src[data-dead="true"] .src__name { text-decoration: none; color: var(--ink-faint); }
+.src[data-dead="true"] .src__row { cursor: default; }
+.src[data-dead="true"] input[type="checkbox"] { opacity: 0.3; cursor: not-allowed; }
+
+.src__row {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.src__row:hover { background: var(--panel-2); }
+
+.src__name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src__ats { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+.src__ok { font-family: var(--mono); font-size: 10.5px; color: var(--green); }
+.src__warn { font-family: var(--mono); font-size: 10.5px; color: var(--red); }
+
+.sheet__foot {
+  padding: 11px 18px;
+  border-top: 1px solid var(--rule);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* ── cost trace ───────────────────────────────────────────────────── */
+
+.trace { width: 100%; border-collapse: collapse; font-size: 12px; }
+.trace th, .trace td { padding: 6px 14px; text-align: left; }
+.trace th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  font-weight: 600;
+  border-bottom: 1px solid var(--rule);
+}
+.trace td { color: var(--ink-dim); border-bottom: 1px solid rgba(255, 255, 255, 0.035); }
+.trace td:last-child, .trace th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.trace tr:hover td { background: rgba(255, 255, 255, 0.022); }
+
+/* ── narrower windows ─────────────────────────────────────────────────
+   Below 1240px the right rail moves under the centre column; below 900px
+   everything stacks and the page scrolls again, because on a phone a fixed
+   shell with five scroll regions is worse than a document. */
+
+@media (max-width: 1240px) {
+  .grid { grid-template-columns: var(--rail-l) minmax(0, 1fr); }
+  .rail--right { grid-column: 2; }
+  .centre { overflow-y: auto; }
+  .panel--stream { flex: 0 0 auto; max-height: 60vh; }
+}
+
+@media (max-width: 900px) {
+  body { height: auto; overflow: auto; display: block; }
+  .grid { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  .rail, .centre { overflow: visible; }
+  .rail--right { grid-column: 1; }
+  .topbar { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 12px; }
+  .topbar__meters { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ── continue a search ────────────────────────────────────────────────
+   Sits under the ranked list rather than in the launch form: it is an action
+   on *these results*, and it only means anything once there are some. */
+.results__more {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--rule);
+  background: var(--panel-2);
+  flex: 0 0 auto;
+}
+.results__more .hint { margin: 0; font-size: 12px; }
+.results__more .btn { flex: 0 0 auto; }
+
+/* ── "it is working" ──────────────────────────────────────────────────
+   A search spends most of its wall time inside one node — the harvest can
+   run three minutes against a hundred boards, emitting nothing the whole
+   while. A static screen for three minutes reads as a hang, and people
+   reload, which starts a second run. This strip exists to say: still going,
+   this is the step, this is how long it has been.
+
+   Indeterminate on purpose. The run genuinely does not know its own
+   percentage — how many postings a board will return is unknown until it
+   answers — and a fake percentage that stalls at 80% is worse than an honest
+   "working". */
+
+.working {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px 9px 12px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel-2);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+/* The sweep. Sits behind the text at low opacity so it reads as motion in
+   the surface rather than as a element demanding attention. */
+.working__bar {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--amber-wash) 48%,
+    rgba(255, 180, 67, 0.2) 52%,
+    var(--amber-wash) 56%,
+    transparent 84%
+  );
+  background-size: 220% 100%;
+  animation: sweep 2.1s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+}
+
+@keyframes sweep {
+  from { background-position: 160% 0; }
+  to   { background-position: -60% 0; }
+}
+
+.working__dot {
+  position: relative;
+  width: 7px; height: 7px;
+  flex: 0 0 7px;
+  border-radius: 99px;
+  background: var(--amber);
+  box-shadow: 0 0 0 0 var(--amber-wash);
+  animation: ping 1.5s ease-out infinite;
+}
+
+@keyframes ping {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 180, 67, 0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(255, 180, 67, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 180, 67, 0); }
+}
+
+.working__what {
+  position: relative;
+  font-size: 13px;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.working__what b { color: var(--amber); font-weight: 600; }
+
+.working__clock {
+  position: relative;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Motion is the whole point of this element, so when motion is unwanted the
+   strip stays — as a static label — rather than the information disappearing
+   with the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .working__bar { display: none; }
+  .working__dot { animation: none; }
+}
+
+/* The no-key strip is an instruction, not a warning: amber like the rest of
+   the console, with the numbered steps set apart so they read as a recipe
+   rather than as prose to skim past. */
+.mode-strip[data-mode="nokey"] {
+  background: linear-gradient(90deg, var(--amber-wash), rgba(255, 180, 67, 0.05));
+  border-bottom-color: var(--amber);
+}
+.mode-strip__how,
+.mode-strip .strip__how {
+  /* Block, not inline: the sentence that follows the steps was running on
+     from step 4 and reading as a fifth instruction. */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 6px 0;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+}
+.mode-strip code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+}

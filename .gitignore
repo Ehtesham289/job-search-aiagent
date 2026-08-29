@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.env
+
+# Local state. The registry and every run live here, and the checkpoint store
+# grows into the hundreds of megabytes — `*.sqlite` alone does not match
+# `*.sqlite-wal`, `-shm`, or the `.sqlite.checkpoints` family, so all four
+# shapes are listed rather than assumed.
+*.sqlite
+*.sqlite-*
+*.sqlite.checkpoints
+*.sqlite.checkpoints-*
+*.sqlite-journal
+
+# Rendered résumés.
+out/
+.tmp/
+.tmp*

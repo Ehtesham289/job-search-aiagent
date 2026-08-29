@@ -1,0 +1,10 @@
+{
+  "company": "Zeta",
+  "title": "Backend Engineer",
+  "location": "Bengaluru, India",
+  "posted_at": "2026-08-10T00:00:00Z",
+  "url": "https://boards.greenhouse.io/zeta/jobs/1001",
+  "apply_url": "https://boards.greenhouse.io/zeta/jobs/1001",
+  "department": "Engineering",
+  "description": "Zeta is hiring a Backend Engineer for the core banking ledger team in Bengaluru.\n\nWhat you will do:\n- Design and operate services that move money, written in Node.js and TypeScript.\n- Own PostgreSQL schema design, including migrations on tables that cannot take downtime.\n- Build and maintain REST APIs consumed by partner banks.\n- Participate in a weekly on-call rotation for the ledger platform.\n\nRequirements:\n- 3-6 years building backend services in production.\n- Strong PostgreSQL: you have debugged a slow query plan and fixed it.\n- Experience with AWS and containerised deploys (Docker, ECS or Kubernetes).\n- Comfortable writing tests for systems where correctness is not optional.\n\nNice to have: Kafka or another message queue, Terraform, prior fintech experience."
+}

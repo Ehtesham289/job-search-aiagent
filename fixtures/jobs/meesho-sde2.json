@@ -1,0 +1,10 @@
+{
+  "company": "Meesho",
+  "title": "SDE II - Backend",
+  "location": "Bengaluru, India",
+  "posted_at": "2026-08-18T00:00:00Z",
+  "url": "https://www.meesho.io/jobs/2002",
+  "apply_url": "https://www.meesho.io/jobs/2002",
+  "department": "Supply",
+  "description": "We are looking for an SDE II to join the supply platform team.\n\nResponsibilities:\n- Build backend services in Node.js or Java that power seller onboarding.\n- Model data in PostgreSQL and keep read paths fast as volume grows.\n- Work with product to turn vague requirements into shipped REST APIs.\n- Take part in on-call for the services you own.\n\nWhat we look for:\n- 3-5 years of backend engineering experience.\n- Solid SQL and data modelling.\n- Familiarity with AWS, Docker and CI/CD pipelines.\n- Bias toward small, reversible changes.\n\nBonus: experience with Redis, or with high-write systems."
+}
